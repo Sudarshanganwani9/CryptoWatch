@@ -1,1 +1,4 @@
 project_id = "yzsuhfhhzcggawjsuyxk"
+
+[functions.crypto-prices]
+verify_jwt = false

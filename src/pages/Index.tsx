@@ -3,7 +3,8 @@ import { CryptoPriceCard, CryptoData } from "@/components/CryptoPriceCard";
 import { AlertManager, Alert } from "@/components/AlertManager";
 import { ActiveAlerts } from "@/components/ActiveAlerts";
 import { useToast } from "@/hooks/use-toast";
-import { Activity, Zap } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { Activity, Zap, RefreshCw } from "lucide-react";
 
 // Mock cryptocurrency data with real-time simulation
 const INITIAL_CRYPTO_DATA: CryptoData[] = [
@@ -52,27 +53,59 @@ const INITIAL_CRYPTO_DATA: CryptoData[] = [
 const Index = () => {
   const [cryptoData, setCryptoData] = useState<CryptoData[]>(INITIAL_CRYPTO_DATA);
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const { toast } = useToast();
 
-  // Simulate real-time price updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCryptoData((prevData) => 
-        prevData.map((crypto) => {
-          // Simulate price fluctuation (-2% to +2%)
-          const changePercent = (Math.random() - 0.5) * 0.04;
-          const newPrice = crypto.price * (1 + changePercent);
-          const newChange24h = crypto.change24h + (Math.random() - 0.5) * 0.5;
-          
-          return {
-            ...crypto,
-            price: newPrice,
-            change24h: newChange24h,
-          };
-        })
-      );
-    }, 3000); // Update every 3 seconds
+  // Fetch real cryptocurrency data
+  const fetchCryptoData = async () => {
+    setIsLoading(true);
+    try {
+      console.log('Fetching crypto data from API...');
+      const { data, error } = await supabase.functions.invoke('crypto-prices');
+      
+      if (error) {
+        console.error('Supabase function error:', error);
+        throw error;
+      }
 
+      console.log('API response:', data);
+      
+      if (data?.success && data?.data) {
+        setCryptoData(data.data);
+        setLastUpdated(new Date());
+        toast({
+          title: "Prices Updated",
+          description: "Latest cryptocurrency prices loaded successfully",
+        });
+      } else if (data?.data) {
+        // Fallback data from API error
+        setCryptoData(data.data);
+        toast({
+          title: "Using Cached Data", 
+          description: "Unable to fetch live prices, showing recent data",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching crypto data:', error);
+      toast({
+        title: "Failed to Update Prices",
+        description: "Using cached data. Check your internet connection.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Initial data fetch and periodic updates
+  useEffect(() => {
+    fetchCryptoData();
+    
+    // Update every 60 seconds for real data
+    const interval = setInterval(fetchCryptoData, 60000);
+    
     return () => clearInterval(interval);
   }, []);
 
@@ -128,9 +161,19 @@ const Index = () => {
               </div>
               <h1 className="text-2xl font-bold text-foreground">CryptoWatch</h1>
             </div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Zap className="w-4 h-4 text-primary" />
-              Live Prices
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Zap className="w-4 h-4 text-primary" />
+                Live Prices
+              </div>
+              <button
+                onClick={fetchCryptoData}
+                disabled={isLoading}
+                className="flex items-center gap-1 text-sm text-primary hover:text-primary/80 disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                {isLoading ? 'Updating...' : 'Refresh'}
+              </button>
             </div>
           </div>
         </div>
@@ -149,10 +192,15 @@ const Index = () => {
 
         {/* Price Cards Grid */}
         <section className="mb-12">
-          <h3 className="text-2xl font-semibold text-foreground mb-6 flex items-center gap-2">
-            <Activity className="w-6 h-6 text-primary" />
-            Live Prices
-          </h3>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-2xl font-semibold text-foreground flex items-center gap-2">
+              <Activity className="w-6 h-6 text-primary" />
+              Live Prices
+            </h3>
+            <div className="text-sm text-muted-foreground">
+              Last updated: {lastUpdated.toLocaleTimeString()}
+            </div>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
             {cryptoData.map((crypto) => (
               <CryptoPriceCard key={crypto.id} crypto={crypto} />
