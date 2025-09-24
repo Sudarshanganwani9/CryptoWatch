@@ -42,7 +42,7 @@ Build Tools: PostCSS, ESLint
 
 1. Clone the repository
 
-git clone https://github.com/your-username/CryptoWatch.git
+git clone https://github.com/Sudarshanganwani9/CryptoWatch.git
 cd CryptoWatch-main
 
 2. Install dependencies
